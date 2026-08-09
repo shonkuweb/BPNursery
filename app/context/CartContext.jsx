@@ -39,7 +39,7 @@ export function CartProvider({ children }) {
     localStorage.setItem("blooming-partners-cart", JSON.stringify(items));
   }, [items]);
 
-  const addItem = (slug, qty = 1, variant = null) => {
+  const addItem = (slug, qty = 5, variant = null) => {
     setItems((prev) => {
       const found = prev.find((i) => i.slug === slug && i.variant === variant);
       if (found) {

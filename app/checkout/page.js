@@ -107,7 +107,7 @@ export default function CheckoutPage() {
     }
 
     const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/919836820811?text=${encodedMessage}`;
+    const whatsappUrl = `https://wa.me/919153117740?text=${encodedMessage}`;
     
     // Open WhatsApp in new window
     window.open(whatsappUrl, '_blank');
@@ -288,7 +288,7 @@ export default function CheckoutPage() {
           </span>
           <span>Cart</span>
         </button>
-        <a href="https://wa.me/919836820811" className="bottom-item" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
+        <a href="https://wa.me/919153117740" className="bottom-item" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
           <span className="bottom-icon" style={{ color: '#25D366' }}>
             <FaWhatsapp />
           </span>

@@ -1,6 +1,18 @@
 "use client";
 import { useState, useEffect } from "react";
-import { FiUpload, FiTrash2, FiPlus, FiTag, FiEdit2 } from "react-icons/fi";
+import {
+  FiUpload,
+  FiTrash2,
+  FiPlus,
+  FiTag,
+  FiEdit2,
+  FiBox,
+  FiShoppingBag,
+  FiSettings,
+  FiSearch,
+  FiExternalLink,
+  FiX
+} from "react-icons/fi";
 import Link from "next/link";
 import imageCompression from 'browser-image-compression';
 
@@ -10,12 +22,19 @@ export default function AdminPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isAddingCategory, setIsAddingCategory] = useState(false);
-  
+
+  // 4 Main Tabs: "products" | "categories" | "orders" | "settings"
+  const [activeTab, setActiveTab] = useState("products");
+
+  // Products Subview on Mobile: "list" | "form"
+  const [productSubView, setProductSubView] = useState("list");
+  const [searchQuery, setSearchQuery] = useState("");
+
   // Edit mode state
   const [editingProductId, setEditingProductId] = useState(null);
   const [existingImage, setExistingImage] = useState("");
-  
-  // New product form state
+
+  // Product form fields
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [price, setPrice] = useState("");
@@ -23,13 +42,13 @@ export default function AdminPage() {
   const [offer, setOffer] = useState("");
   const [file, setFile] = useState(null);
   const [categoryId, setCategoryId] = useState("");
-  
+
   // Adenium options state
   const [adeniumPrice8, setAdeniumPrice8] = useState("");
   const [adeniumPrice10, setAdeniumPrice10] = useState("");
   const [adeniumPriceSingle, setAdeniumPriceSingle] = useState("");
 
-  // New category form state
+  // Category form state
   const [categoryName, setCategoryName] = useState("");
   const [categorySlug, setCategorySlug] = useState("");
 
@@ -37,9 +56,9 @@ export default function AdminPage() {
     fetchData();
   }, []);
 
-  // Temporary feature: auto-select Hoya category on load
+  // Temporary feature: auto-select Hoya category on load for new products
   useEffect(() => {
-    if (categories.length > 0 && !categoryId) {
+    if (categories.length > 0 && !categoryId && !editingProductId) {
       const hoyaCat = categories.find(c => c.name.toLowerCase() === 'hoya');
       if (hoyaCat) {
         setCategoryId(hoyaCat.id.toString());
@@ -50,7 +69,7 @@ export default function AdminPage() {
         setOffer('20% OFF');
       }
     }
-  }, [categories, categoryId]);
+  }, [categories, categoryId, editingProductId]);
 
   const fetchData = async () => {
     try {
@@ -60,32 +79,34 @@ export default function AdminPage() {
       ]);
       const prodData = await prodRes.json();
       const catData = await catRes.json();
-      setProducts(prodData);
-      setCategories(catData);
+      setProducts(Array.isArray(prodData) ? prodData : []);
+      setCategories(Array.isArray(catData) ? catData : []);
     } catch (err) {
-      console.error(err);
+      console.error("Failed to fetch admin data:", err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleDeleteProduct = async (slug) => {
+  const handleDeleteProduct = async (productSlug) => {
     if (!confirm("Are you sure you want to delete this product?")) return;
     try {
-      await fetch(`/api/products?slug=${slug}`, { method: "DELETE" });
+      await fetch(`/api/products?slug=${productSlug}`, { method: "DELETE" });
       fetchData();
     } catch (err) {
       console.error(err);
+      alert("Failed to delete product");
     }
   };
 
-  const handleDeleteCategory = async (slug) => {
-    if (!confirm("Are you sure you want to delete this category? Products in this category will lose their category association.")) return;
+  const handleDeleteCategory = async (catSlug) => {
+    if (!confirm("Are you sure you want to delete this category? Products in this category will keep their details.")) return;
     try {
-      await fetch(`/api/categories?slug=${slug}`, { method: "DELETE" });
+      await fetch(`/api/categories?slug=${catSlug}`, { method: "DELETE" });
       fetchData();
     } catch (err) {
       console.error(err);
+      alert("Failed to delete category");
     }
   };
 
@@ -103,6 +124,7 @@ export default function AdminPage() {
       setCategoryName("");
       setCategorySlug("");
       fetchData();
+      alert("Category added successfully!");
     } catch (err) {
       console.error(err);
       alert("Error: " + err.message);
@@ -113,12 +135,12 @@ export default function AdminPage() {
 
   const handleEditProduct = (product) => {
     setEditingProductId(product.id);
-    setTitle(product.title);
-    setSlug(product.slug);
-    setPrice(product.price);
+    setTitle(product.title || "");
+    setSlug(product.slug || "");
+    setPrice(product.price || "");
     setOldPrice(product.oldPrice || "");
     setOffer(product.offer || "");
-    setExistingImage(product.image);
+    setExistingImage(product.image || "");
     setCategoryId(product.categoryId ? product.categoryId.toString() : "");
     setFile(null);
 
@@ -131,7 +153,8 @@ export default function AdminPage() {
       setAdeniumPrice10("");
       setAdeniumPriceSingle("");
     }
-    
+
+    setProductSubView("form");
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -148,6 +171,22 @@ export default function AdminPage() {
     setAdeniumPrice8("");
     setAdeniumPrice10("");
     setAdeniumPriceSingle("");
+    setProductSubView("list");
+  };
+
+  const handleCategoryChange = (e) => {
+    const newCatId = e.target.value;
+    setCategoryId(newCatId);
+
+    // Temporary feature for Hoya category
+    const selectedCat = categories.find(c => c.id == newCatId);
+    if (selectedCat && selectedCat.name.toLowerCase() === 'hoya' && !editingProductId) {
+      setTitle('Hoya');
+      setSlug(`hoya-${Date.now()}`);
+      setPrice('450');
+      setOldPrice('650');
+      setOffer('20% OFF');
+    }
   };
 
   const handleSubmitProduct = async (e) => {
@@ -157,7 +196,7 @@ export default function AdminPage() {
       return;
     }
     if (!editingProductId && !file) {
-      alert("Image is required for new products!");
+      alert("Please choose an image for the new product!");
       return;
     }
 
@@ -174,7 +213,7 @@ export default function AdminPage() {
           useWebWorker: true
         };
         const compressedFile = await imageCompression(file, options);
-        
+
         const formData = new FormData();
         formData.append("file", new File([compressedFile], file.name, { type: compressedFile.type }));
 
@@ -191,7 +230,7 @@ export default function AdminPage() {
         imageUrl = uploadData.url;
       }
 
-      // 2. Save the product
+      // 2. Format options
       const isAdenium = categories.find(c => c.id == categoryId)?.name === "Adenium";
       const adeniumOptions = isAdenium ? {
         "Multigrafted 8\" Pot": adeniumPrice8 || null,
@@ -232,10 +271,8 @@ export default function AdminPage() {
         throw new Error(`Failed to ${editingProductId ? 'update' : 'save'} product`);
       }
 
-      // 3. Reset form
+      // Reset form and switch to inventory list
       handleCancelEdit();
-      
-      // 4. Refresh list
       fetchData();
       alert(`Product ${editingProductId ? 'updated' : 'added'} successfully!`);
 
@@ -250,7 +287,9 @@ export default function AdminPage() {
   const handleTitleChange = (e) => {
     const newTitle = e.target.value;
     setTitle(newTitle);
-    setSlug(newTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''));
+    if (!editingProductId) {
+      setSlug(newTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''));
+    }
   };
 
   const handleCategoryNameChange = (e) => {
@@ -259,222 +298,601 @@ export default function AdminPage() {
     setCategorySlug(newName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''));
   };
 
+  // Filter products by search query
+  const filteredProducts = products.filter(p => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    const titleMatch = p.title?.toLowerCase().includes(q);
+    const slugMatch = p.slug?.toLowerCase().includes(q);
+    const cat = categories.find(c => c.id == p.categoryId)?.name?.toLowerCase();
+    return titleMatch || slugMatch || (cat && cat.includes(q));
+  });
+
   return (
     <div className="admin-container">
+      {/* Top Header */}
       <header className="admin-header">
         <div className="admin-header-content">
-          <h1>Admin Dashboard</h1>
-          <Link href="/" className="admin-back-btn">View Store</Link>
+          <div className="admin-header-left">
+            <h1 className="admin-header-title">
+              BPN Admin <span className="admin-badge-pill">Store</span>
+            </h1>
+          </div>
+          <Link href="/" className="admin-back-btn" target="_blank" rel="noopener noreferrer">
+            <FiExternalLink /> View Store
+          </Link>
         </div>
       </header>
 
+      {/* 4 Tabs Bar - Sticky, Mobile Optimized */}
+      <nav className="admin-tabs-nav" aria-label="Admin Navigation Tabs">
+        <div className="admin-tabs-list">
+          <button
+            type="button"
+            className={`admin-tab-btn ${activeTab === "products" ? "active" : ""}`}
+            onClick={() => setActiveTab("products")}
+          >
+            <FiBox className="tab-icon" />
+            <span>Products</span>
+            {products.length > 0 && (
+              <span className="admin-tab-counter">{products.length}</span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            className={`admin-tab-btn ${activeTab === "categories" ? "active" : ""}`}
+            onClick={() => setActiveTab("categories")}
+          >
+            <FiTag className="tab-icon" />
+            <span>Categories</span>
+            {categories.length > 0 && (
+              <span className="admin-tab-counter">{categories.length}</span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            className={`admin-tab-btn ${activeTab === "orders" ? "active" : ""}`}
+            onClick={() => setActiveTab("orders")}
+          >
+            <FiShoppingBag className="tab-icon" />
+            <span>Orders</span>
+          </button>
+
+          <button
+            type="button"
+            className={`admin-tab-btn ${activeTab === "settings" ? "active" : ""}`}
+            onClick={() => setActiveTab("settings")}
+          >
+            <FiSettings className="tab-icon" />
+            <span>Settings</span>
+          </button>
+        </div>
+      </nav>
+
+      {/* Main Content Area */}
       <main className="admin-main">
-        <div className="admin-content-grid">
-          
-          <div className="admin-left-col">
-            <section className="admin-card add-product-section" style={{marginBottom: '24px'}}>
-              <h2><FiTag /> Manage Categories</h2>
-              <form onSubmit={handleAddCategory} className="admin-form" style={{display: 'flex', gap: '8px', marginBottom: '16px'}}>
-                <input 
-                  type="text" 
-                  value={categoryName} 
-                  onChange={handleCategoryNameChange} 
-                  placeholder="New Category Name" 
-                  required 
-                  style={{flex: 1, padding: '8px', border: '1px solid #ddd', borderRadius: '4px'}}
-                />
-                <button type="submit" disabled={isAddingCategory} style={{background: '#187a32', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer'}}>
-                  {isAddingCategory ? "Adding..." : "Add"}
-                </button>
-              </form>
-              <div className="admin-category-list">
-                {categories.map(cat => (
-                  <div key={cat.id} style={{display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #eee', alignItems: 'center'}}>
-                    <span>{cat.name}</span>
-                    <button onClick={() => handleDeleteCategory(cat.slug)} style={{background: 'none', border: 'none', color: '#ff4d4f', cursor: 'pointer'}}><FiTrash2 /></button>
-                  </div>
-                ))}
-                {categories.length === 0 && <p style={{color: '#666', fontSize: '14px'}}>No categories yet.</p>}
-              </div>
-            </section>
-
-            <section className="admin-card add-product-section">
-              <h2><FiPlus /> {editingProductId ? "Edit Product" : "Add New Product"}</h2>
-              <form onSubmit={handleSubmitProduct} className="admin-form">
-                <div className="form-group">
-                  <label>Product Title</label>
-                  <input 
-                    type="text" 
-                    value={title} 
-                    onChange={handleTitleChange} 
-                    placeholder="e.g. Rare Hoya Compacta" 
-                    required 
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>URL Slug</label>
-                  <input 
-                    type="text" 
-                    value={slug} 
-                    onChange={(e) => setSlug(e.target.value)} 
-                    placeholder="e.g. rare-hoya-compacta" 
-                    required 
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Category</label>
-                  <select 
-                    value={categoryId} 
-                    onChange={(e) => {
-                      const newCatId = e.target.value;
-                      setCategoryId(newCatId);
-                      
-                      // Temporary feature for Hoya category
-                      const selectedCat = categories.find(c => c.id == newCatId);
-                      if (selectedCat && selectedCat.name.toLowerCase() === 'hoya') {
-                        setTitle('Hoya');
-                        setSlug(`hoya-${Date.now()}`);
-                        setPrice('450');
-                        setOldPrice('650');
-                        setOffer('20% OFF');
-                      }
-                    }}
-                    style={{width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cde2d3'}}
-                  >
-                    <option value="">Select a Category (Optional)</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {categories.find(c => c.id == categoryId)?.name === "Adenium" && (
-                  <div className="form-group" style={{background: '#f9f9f9', padding: '16px', borderRadius: '8px', marginBottom: '16px'}}>
-                    <h3 style={{marginBottom: '12px', fontSize: '16px', color: '#187a32'}}>Adenium Prices (Leave empty if not applicable)</h3>
-                    <div style={{display: 'flex', gap: '12px', flexDirection: 'column'}}>
-                      <div>
-                        <label>Multigrafted 8" Pot (₹)</label>
-                        <input type="number" value={adeniumPrice8} onChange={e => setAdeniumPrice8(e.target.value)} placeholder="e.g. 500" />
-                      </div>
-                      <div>
-                        <label>Multigrafted 10" Pot (₹)</label>
-                        <input type="number" value={adeniumPrice10} onChange={e => setAdeniumPrice10(e.target.value)} placeholder="e.g. 800" />
-                      </div>
-                      <div>
-                        <label>Single Grafted (₹)</label>
-                        <input type="number" value={adeniumPriceSingle} onChange={e => setAdeniumPriceSingle(e.target.value)} placeholder="e.g. 300" />
-                      </div>
-                    </div>
-                  </div>
+        {/* ================= TAB 1: PRODUCTS ================= */}
+        {activeTab === "products" && (
+          <div>
+            {/* Sub-navigation Segmented Control */}
+            <div className="admin-subnav">
+              <button
+                type="button"
+                className={`admin-subnav-btn ${productSubView === "list" ? "active" : ""}`}
+                onClick={() => setProductSubView("list")}
+              >
+                <FiBox /> Inventory ({products.length})
+              </button>
+              <button
+                type="button"
+                className={`admin-subnav-btn ${productSubView === "form" ? "active" : ""}`}
+                onClick={() => {
+                  if (productSubView !== "form") {
+                    setProductSubView("form");
+                  }
+                }}
+              >
+                {editingProductId ? (
+                  <>
+                    <FiEdit2 /> Edit Product
+                  </>
+                ) : (
+                  <>
+                    <FiPlus /> Add Product
+                  </>
                 )}
+              </button>
+            </div>
 
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Price (₹)</label>
-                    <input 
-                      type="number" 
-                      value={price} 
-                      onChange={(e) => setPrice(e.target.value)} 
-                      placeholder="299" 
-                      required 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Old Price (₹) (Optional)</label>
-                    <input 
-                      type="number" 
-                      value={oldPrice} 
-                      onChange={(e) => setOldPrice(e.target.value)} 
-                      placeholder="399" 
-                    />
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label>Offer Badge Text (Optional)</label>
-                  <input 
-                    type="text" 
-                    value={offer} 
-                    onChange={(e) => setOffer(e.target.value)} 
-                    placeholder="e.g. 20% OFF" 
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Product Image</label>
-                  <div className="file-upload-wrapper">
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={(e) => setFile(e.target.files[0])} 
-                      required={!editingProductId}
-                      id="file-upload"
-                    />
-                    <label htmlFor="file-upload" className="file-upload-label">
-                      <FiUpload /> {file ? file.name : (editingProductId ? "Choose a new image (optional)..." : "Choose an image to upload...")}
-                    </label>
-                  </div>
-                </div>
-
-                <div style={{display: 'flex', gap: '12px'}}>
-                  <button type="submit" className="admin-submit-btn" disabled={isUploading} style={{flex: 1}}>
-                    {isUploading ? "Saving..." : (editingProductId ? "Update Product" : "Save Product")}
+            {/* Sub-view A: Product Inventory List */}
+            {productSubView === "list" && (
+              <section className="admin-card">
+                <div className="admin-card-header">
+                  <h2>
+                    <FiBox /> Products Catalog
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleCancelEdit();
+                      setProductSubView("form");
+                    }}
+                    style={{
+                      background: '#187a32',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '8px 14px',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <FiPlus /> New
                   </button>
-                  {editingProductId && (
-                    <button type="button" onClick={handleCancelEdit} style={{padding: '12px 24px', background: '#666', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'}}>
-                      Cancel Edit
+                </div>
+
+                {/* Instant Mobile Search */}
+                <div className="admin-search-wrapper">
+                  <FiSearch className="admin-search-icon" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search products by name or category..."
+                    className="admin-search-input"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      style={{
+                        position: 'absolute',
+                        right: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: '#8fa096',
+                        cursor: 'pointer',
+                        fontSize: '16px'
+                      }}
+                    >
+                      <FiX />
                     </button>
                   )}
                 </div>
-              </form>
-            </section>
-          </div>
 
-          <section className="admin-card product-list-section">
-            <h2>Manage Inventory</h2>
-            {isLoading ? (
-              <p className="admin-loading">Loading products...</p>
-            ) : products.length === 0 ? (
-              <p className="admin-empty">No products found. Add some to get started!</p>
-            ) : (
-              <div className="admin-product-list">
-                {products.map(product => (
-                  <div key={product.id || product.slug} className="admin-product-item">
-                    <div className="admin-product-image">
-                      <img src={product.image} alt={product.title} />
+                {isLoading ? (
+                  <p className="admin-loading">Loading catalog...</p>
+                ) : filteredProducts.length === 0 ? (
+                  <div className="admin-placeholder-box" style={{ padding: '24px 12px' }}>
+                    <p>{searchQuery ? "No products matching your search." : "No products added yet. Tap '+ Add Product' to start."}</p>
+                  </div>
+                ) : (
+                  <div className="admin-product-list">
+                    {filteredProducts.map((product) => {
+                      const catName = categories.find(c => c.id == product.categoryId)?.name;
+                      return (
+                        <div key={product.id || product.slug} className="admin-product-item">
+                          <div className="admin-product-image">
+                            {product.image ? (
+                              <img src={product.image} alt={product.title} loading="lazy" />
+                            ) : (
+                              <div style={{ width: '100%', height: '100%', display: 'grid', placeContent: 'center', color: '#8fa096' }}>
+                                <FiBox />
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="admin-product-details">
+                            <h3>{product.title}</h3>
+                            <div className="admin-product-pricing">
+                              ₹{product.price}
+                              {product.oldPrice && <span>₹{product.oldPrice}</span>}
+                            </div>
+                            <div className="admin-tag-badges">
+                              {catName && <span className="admin-cat-badge">{catName}</span>}
+                              {product.offer && <span className="admin-offer-badge">{product.offer}</span>}
+                            </div>
+                          </div>
+
+                          <div className="admin-item-actions">
+                            <button
+                              type="button"
+                              onClick={() => handleEditProduct(product)}
+                              className="admin-action-btn edit"
+                              title="Edit product"
+                              aria-label="Edit product"
+                            >
+                              <FiEdit2 />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteProduct(product.slug)}
+                              className="admin-action-btn delete"
+                              title="Delete product"
+                              aria-label="Delete product"
+                            >
+                              <FiTrash2 />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Sub-view B: Add / Edit Product Form */}
+            {productSubView === "form" && (
+              <section className="admin-card">
+                <div className="admin-card-header">
+                  <h2>
+                    {editingProductId ? <FiEdit2 /> : <FiPlus />}
+                    {editingProductId ? "Edit Product" : "Add New Product"}
+                  </h2>
+                  {editingProductId && (
+                    <button
+                      type="button"
+                      onClick={handleCancelEdit}
+                      style={{
+                        background: 'transparent',
+                        border: '1px solid #c9d8ce',
+                        borderRadius: '6px',
+                        padding: '4px 10px',
+                        fontSize: '12px',
+                        color: '#55685d',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+
+                <form onSubmit={handleSubmitProduct} className="admin-form">
+                  <div className="form-group">
+                    <label>Product Title *</label>
+                    <input
+                      type="text"
+                      value={title}
+                      onChange={handleTitleChange}
+                      placeholder="e.g. Rare Hoya Compacta"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>URL Slug *</label>
+                    <input
+                      type="text"
+                      value={slug}
+                      onChange={(e) => setSlug(e.target.value)}
+                      placeholder="e.g. rare-hoya-compacta"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Category</label>
+                    <select
+                      value={categoryId}
+                      onChange={handleCategoryChange}
+                    >
+                      <option value="">Select a Category (Optional)</option>
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Adenium Specific Options */}
+                  {categories.find((c) => c.id == categoryId)?.name === "Adenium" && (
+                    <div
+                      className="form-group"
+                      style={{
+                        background: '#f4f9f5',
+                        padding: '14px',
+                        borderRadius: '12px',
+                        border: '1px solid #d8ebd9'
+                      }}
+                    >
+                      <label style={{ color: '#187a32', marginBottom: '8px' }}>
+                        Adenium Variations (₹)
+                      </label>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <input
+                          type="number"
+                          value={adeniumPrice8}
+                          onChange={(e) => setAdeniumPrice8(e.target.value)}
+                          placeholder={'Multigrafted 8" Pot Price'}
+                        />
+                        <input
+                          type="number"
+                          value={adeniumPrice10}
+                          onChange={(e) => setAdeniumPrice10(e.target.value)}
+                          placeholder={'Multigrafted 10" Pot Price'}
+                        />
+                        <input
+                          type="number"
+                          value={adeniumPriceSingle}
+                          onChange={(e) => setAdeniumPriceSingle(e.target.value)}
+                          placeholder="Single Grafted Price"
+                        />
+                      </div>
                     </div>
-                    <div className="admin-product-details">
-                      <h3>{product.title}</h3>
-                      <p>₹{product.price} {product.oldPrice && <span>(was ₹{product.oldPrice})</span>}</p>
-                      {product.category_name && <span style={{fontSize: '12px', background: '#eaf4ee', color: '#187a32', padding: '2px 8px', borderRadius: '12px', display: 'inline-block', marginTop: '4px'}}>{product.category_name}</span>}
+                  )}
+
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Price (₹) *</label>
+                      <input
+                        type="number"
+                        value={price}
+                        onChange={(e) => setPrice(e.target.value)}
+                        placeholder="450"
+                        required
+                      />
                     </div>
-                    <div style={{display: 'flex', gap: '12px'}}>
-                      <button 
-                        onClick={() => handleEditProduct(product)} 
-                        className="admin-edit-btn"
-                        title="Edit Product"
-                        style={{background: 'none', border: 'none', color: '#1890ff', cursor: 'pointer', fontSize: '20px'}}
-                      >
-                        <FiEdit2 />
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteProduct(product.slug)} 
-                        className="admin-delete-btn"
-                        title="Delete Product"
-                        style={{background: 'none', border: 'none', color: '#ff4d4f', cursor: 'pointer', fontSize: '20px'}}
-                      >
-                        <FiTrash2 />
-                      </button>
+                    <div className="form-group">
+                      <label>Old Price (₹)</label>
+                      <input
+                        type="number"
+                        value={oldPrice}
+                        onChange={(e) => setOldPrice(e.target.value)}
+                        placeholder="650"
+                      />
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </section>
 
-        </div>
+                  <div className="form-group">
+                    <label>Offer Badge (Optional)</label>
+                    <input
+                      type="text"
+                      value={offer}
+                      onChange={(e) => setOffer(e.target.value)}
+                      placeholder="e.g. 20% OFF"
+                    />
+                  </div>
+
+                  {/* Mobile Image Upload */}
+                  <div className="form-group">
+                    <label>Product Image {editingProductId ? "(Optional)" : "*"}</label>
+                    <div className="file-upload-wrapper">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setFile(e.target.files[0])}
+                        required={!editingProductId && !existingImage}
+                        id="product-file-upload"
+                      />
+                      <label htmlFor="product-file-upload" className="file-upload-label">
+                        <FiUpload className="upload-icon" />
+                        <span>
+                          {file
+                            ? file.name
+                            : editingProductId
+                            ? "Tap to choose a replacement image..."
+                            : "Tap to select product photo"}
+                        </span>
+                      </label>
+                    </div>
+
+                    {/* Image Preview */}
+                    {(file || existingImage) && (
+                      <div className="admin-image-preview">
+                        <img
+                          src={file ? URL.createObjectURL(file) : existingImage}
+                          alt="Preview"
+                        />
+                        <span>
+                          {file ? "New file selected (will compress automatically)" : "Current product image"}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="admin-btn-group">
+                    <button
+                      type="submit"
+                      className="admin-submit-btn"
+                      disabled={isUploading}
+                    >
+                      {isUploading
+                        ? "Compressing & Saving..."
+                        : editingProductId
+                        ? "Update Product"
+                        : "Save Product"}
+                    </button>
+                    {editingProductId && (
+                      <button
+                        type="button"
+                        onClick={handleCancelEdit}
+                        className="admin-cancel-btn"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </section>
+            )}
+          </div>
+        )}
+
+        {/* ================= TAB 2: CATEGORIES ================= */}
+        {activeTab === "categories" && (
+          <div>
+            <section className="admin-card">
+              <h2>
+                <FiPlus /> Add New Category
+              </h2>
+              <form onSubmit={handleAddCategory} className="admin-form" style={{ marginTop: '12px' }}>
+                <div className="form-group">
+                  <label>Category Name *</label>
+                  <input
+                    type="text"
+                    value={categoryName}
+                    onChange={handleCategoryNameChange}
+                    placeholder="e.g. Bonsai, Ferns, Hoya"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Category URL Slug *</label>
+                  <input
+                    type="text"
+                    value={categorySlug}
+                    onChange={(e) => setCategorySlug(e.target.value)}
+                    placeholder="e.g. bonsai"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isAddingCategory}
+                  className="admin-submit-btn"
+                  style={{ marginTop: '8px' }}
+                >
+                  {isAddingCategory ? "Adding Category..." : "Add Category"}
+                </button>
+              </form>
+            </section>
+
+            <section className="admin-card">
+              <h2>
+                <FiTag /> Existing Categories ({categories.length})
+              </h2>
+              {categories.length === 0 ? (
+                <p className="admin-empty">No categories found.</p>
+              ) : (
+                <div className="admin-category-list" style={{ marginTop: '12px' }}>
+                  {categories.map((cat) => {
+                    const count = products.filter((p) => p.categoryId == cat.id).length;
+                    return (
+                      <div key={cat.id} className="admin-category-item">
+                        <div className="admin-category-info">
+                          <strong>{cat.name}</strong>
+                          <span>
+                            slug: /{cat.slug} • {count} {count === 1 ? "product" : "products"}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCategory(cat.slug)}
+                          className="admin-action-btn delete"
+                          title="Delete Category"
+                        >
+                          <FiTrash2 />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {/* ================= TAB 3: ORDERS ================= */}
+        {activeTab === "orders" && (
+          <div>
+            <section className="admin-card">
+              <h2>
+                <FiShoppingBag /> Orders Overview
+              </h2>
+              <div className="admin-stats-grid" style={{ marginTop: '14px' }}>
+                <div className="admin-stat-card">
+                  <div className="stat-val">0</div>
+                  <div className="stat-lbl">Total Orders</div>
+                </div>
+                <div className="admin-stat-card">
+                  <div className="stat-val">0</div>
+                  <div className="stat-lbl">Pending</div>
+                </div>
+                <div className="admin-stat-card">
+                  <div className="stat-val">0</div>
+                  <div className="stat-lbl">Delivered</div>
+                </div>
+                <div className="admin-stat-card">
+                  <div className="stat-val">₹0</div>
+                  <div className="stat-lbl">Revenue</div>
+                </div>
+              </div>
+
+              <div className="admin-placeholder-box">
+                <FiShoppingBag className="box-icon" />
+                <h3>Order Management</h3>
+                <p>
+                  Customer orders submitted via checkout and WhatsApp will be tracked and listed here. You will be able to update order delivery statuses, payment confirmations, and customer details.
+                </p>
+              </div>
+            </section>
+          </div>
+        )}
+
+        {/* ================= TAB 4: SETTINGS ================= */}
+        {activeTab === "settings" && (
+          <div>
+            <section className="admin-card">
+              <h2>
+                <FiSettings /> Store Settings
+              </h2>
+              <div className="admin-settings-group" style={{ marginTop: '14px' }}>
+                <div className="admin-setting-item">
+                  <div className="admin-setting-info">
+                    <strong>Store Domain</strong>
+                    <span>Live customer domain</span>
+                  </div>
+                  <span className="admin-setting-val">bpn.shonku.site</span>
+                </div>
+
+                <div className="admin-setting-item">
+                  <div className="admin-setting-info">
+                    <strong>WhatsApp Business Number</strong>
+                    <span>Receives instant checkout order texts</span>
+                  </div>
+                  <span className="admin-setting-val">+91 9836820811</span>
+                </div>
+
+                <div className="admin-setting-item">
+                  <div className="admin-setting-info">
+                    <strong>Media Cloud Storage</strong>
+                    <span>Cloudflare R2 Bucket for fast image loading</span>
+                  </div>
+                  <span className="admin-setting-val" style={{ background: '#e5f3ff', color: '#0969da' }}>
+                    Connected (chf-media)
+                  </span>
+                </div>
+
+                <div className="admin-setting-item">
+                  <div className="admin-setting-info">
+                    <strong>Store Status</strong>
+                    <span>Online store catalog visibility</span>
+                  </div>
+                  <span className="admin-setting-val">Active</span>
+                </div>
+              </div>
+
+              <div className="admin-placeholder-box" style={{ marginTop: '16px' }}>
+                <FiSettings className="box-icon" />
+                <h3>More Settings Coming Soon</h3>
+                <p>
+                  Delivery pricing tiers, minimum order values, store banners, and admin credentials settings will be configurable directly from this panel.
+                </p>
+              </div>
+            </section>
+          </div>
+        )}
       </main>
     </div>
   );

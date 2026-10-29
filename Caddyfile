@@ -1,3 +1,4 @@
-bpn.shonkuweb.com {
+bpn.shonku.site {
     reverse_proxy web:3000
 }
+

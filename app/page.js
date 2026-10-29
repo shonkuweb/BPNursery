@@ -27,7 +27,8 @@ export default function Home() {
   const [activeCategoryId, setActiveCategoryId] = useState(null);
   const [dbCategories, setDbCategories] = useState([]);
   
-  const { addItem, products, productsLoading, setIsSidebarOpen } = useCart();
+  const { addItem, items, products, productsLoading, setIsSidebarOpen } = useCart();
+  const cartCount = (items || []).reduce((acc, item) => acc + (item.qty || 1), 0);
 
   useEffect(() => {
     fetch("/api/categories")
@@ -90,12 +91,14 @@ export default function Home() {
         <button className="icon-btn" aria-label="Open menu" onClick={() => setMenuOpen(true)}>
           <FiMenu />
         </button>
-        <Link href="/" className="header-center" aria-label="Blooming Partners Nursery home" style={{ textDecoration: 'none', color: '#1f6b2c', fontSize: '20px', fontWeight: 'bold', textAlign: 'center', lineHeight: '1.2' }}>
-          Blooming Partners Nursery
+        <Link href="/" className="header-center" aria-label="Blooming Partners Nursery home" style={{ textDecoration: 'none', color: '#1f6b2c', fontSize: '19px', fontWeight: '800', textAlign: 'center', lineHeight: '1.2', letterSpacing: '-0.3px' }}>
+          Blooming Partners
+          <span style={{ display: 'block', fontSize: '10px', fontWeight: '700', letterSpacing: '1.5px', color: '#68846f', textTransform: 'uppercase' }}>Nursery</span>
         </Link>
         <div className="header-actions">
-          <button className="icon-btn" aria-label="Shopping bag" onClick={() => setIsSidebarOpen(true)}>
+          <button className="icon-btn header-cart-btn" aria-label="Shopping bag" onClick={() => setIsSidebarOpen(true)}>
             <FiShoppingBag />
+            {cartCount > 0 && <span className="header-cart-badge">{cartCount}</span>}
           </button>
         </div>
       </header>
@@ -105,11 +108,30 @@ export default function Home() {
           <FiSearch className="search-icon" />
           <input 
             type="text" 
-            placeholder="Search plants, pots..." 
+            placeholder="Search rare hoyas, adeniums, pots..." 
             aria-label="Search" 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              style={{
+                position: 'absolute',
+                right: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                color: '#8fa096',
+                cursor: 'pointer',
+                fontSize: '16px'
+              }}
+            >
+              <FiX />
+            </button>
+          )}
         </div>
       </div>
 
@@ -117,41 +139,88 @@ export default function Home() {
         <>
           <section className="hero" style={heroStyle}>
             <div className="hero-overlay">
-              <span className="badge">NEW ARRIVALS</span>
+              <span className="badge">CURATED FLORA</span>
               <h2>Bring Life to Your Home</h2>
-              <p>Explore our curated collection of indoor plants.</p>
-              <button className="cta-btn">Shop Now</button>
+              <p>Explore our nursery-fresh collection of exotic & rare indoor plants.</p>
+              <button className="cta-btn" onClick={() => {
+                const el = document.querySelector('.best-sellers');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}>Shop Collection</button>
             </div>
           </section>
           <div ref={heroEndRef} aria-hidden="true" />
 
           <div className="notice">
             <p className="notice-track">
-              For product replacement, please record a continuous, single-shot video while opening the package.
+              🌿 100% Live Delivery Guarantee • Safe Plant Transit Packaging • Record continuous unboxing video for replacement claims.
             </p>
           </div>
         </>
       )}
 
+      {/* Circular Category Row with Images */}
       <section className="category-row" aria-label="Plant categories">
-        {dbCategories.map((category, index) => (
-          <article 
-            key={category.id} 
-            className={`category-modern ${activeCategoryId === category.id ? 'active' : ''}`}
-            onClick={() => setActiveCategoryId(activeCategoryId === category.id ? null : category.id)}
-          >
-            <div className={`category-icon-modern tone-${index % 2 === 0 ? 'a' : 'b'}`}>
-              <FaLeaf />
+        {/* All Plants Button */}
+        <button
+          type="button"
+          className={`category-circle-card ${activeCategoryId === null ? 'active' : ''}`}
+          onClick={() => setActiveCategoryId(null)}
+          aria-label="All Categories"
+        >
+          <div className="category-circle-avatar">
+            <div className="category-circle-inner" style={{ background: activeCategoryId === null ? '#187a32' : '#f0f5f1' }}>
+              <FaSeedling style={{ color: activeCategoryId === null ? '#ffffff' : '#187a32', fontSize: '22px' }} />
             </div>
-            <p>{category.name}</p>
-          </article>
-        ))}
+          </div>
+          <p>All Plants</p>
+        </button>
+
+        {/* Dynamic Category Circles */}
+        {dbCategories.map((category) => {
+          const isActive = activeCategoryId === category.id;
+          return (
+            <button
+              key={category.id}
+              type="button"
+              className={`category-circle-card ${isActive ? 'active' : ''}`}
+              onClick={() => setActiveCategoryId(isActive ? null : category.id)}
+              aria-label={`Category ${category.name}`}
+            >
+              <div className="category-circle-avatar">
+                <div className="category-circle-inner">
+                  {category.image ? (
+                    <img src={category.image} alt={category.name} loading="lazy" />
+                  ) : (
+                    <FaLeaf style={{ color: isActive ? '#ffffff' : '#187a32', fontSize: '20px' }} />
+                  )}
+                </div>
+              </div>
+              <p>{category.name}</p>
+            </button>
+          );
+        })}
       </section>
 
       <section className="best-sellers">
-        <div className="section-title">
-          <h2>Trending Plants</h2>
-
+        <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2>{activeCategory ? activeCategory.name : "Trending Plants"}</h2>
+          {activeCategory && (
+            <button
+              onClick={() => setActiveCategoryId(null)}
+              style={{
+                background: '#eaf4ee',
+                color: '#187a32',
+                border: 'none',
+                borderRadius: '14px',
+                padding: '4px 10px',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer'
+              }}
+            >
+              Show All ✕
+            </button>
+          )}
         </div>
 
         <div className="product-grid">
@@ -249,8 +318,9 @@ export default function Home() {
           <span>Menu</span>
         </button>
         <button className="bottom-item" type="button" aria-label="Cart" onClick={() => setIsSidebarOpen(true)}>
-          <span className="bottom-icon">
-            <FiPackage />
+          <span className="bottom-icon" style={{ position: 'relative' }}>
+            <FiShoppingBag />
+            {cartCount > 0 && <span className="bottom-cart-badge">{cartCount}</span>}
           </span>
           <span>Cart</span>
         </button>

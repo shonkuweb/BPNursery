@@ -51,6 +51,9 @@ export default function AdminPage() {
   // Category form state
   const [categoryName, setCategoryName] = useState("");
   const [categorySlug, setCategorySlug] = useState("");
+  const [categoryFile, setCategoryFile] = useState(null);
+  const [editingCategoryId, setEditingCategoryId] = useState(null);
+  const [editingCategoryImage, setEditingCategoryImage] = useState("");
 
   useEffect(() => {
     fetchData();
@@ -110,21 +113,81 @@ export default function AdminPage() {
     }
   };
 
-  const handleAddCategory = async (e) => {
+  const handleEditCategory = (cat) => {
+    setEditingCategoryId(cat.id);
+    setCategoryName(cat.name || "");
+    setCategorySlug(cat.slug || "");
+    setEditingCategoryImage(cat.image || "");
+    setCategoryFile(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelCategoryEdit = () => {
+    setEditingCategoryId(null);
+    setCategoryName("");
+    setCategorySlug("");
+    setEditingCategoryImage("");
+    setCategoryFile(null);
+  };
+
+  const handleSubmitCategory = async (e) => {
     e.preventDefault();
     if (!categoryName || !categorySlug) return;
     setIsAddingCategory(true);
     try {
-      const res = await fetch("/api/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: categoryName, slug: categorySlug }),
-      });
-      if (!res.ok) throw new Error("Failed to add category");
-      setCategoryName("");
-      setCategorySlug("");
+      let imageUrl = editingCategoryImage;
+
+      // Upload category image to R2 if selected
+      if (categoryFile) {
+        const options = {
+          maxSizeMB: 0.3,
+          maxWidthOrHeight: 800,
+          useWebWorker: true
+        };
+        const compressedFile = await imageCompression(categoryFile, options);
+        const formData = new FormData();
+        formData.append("file", new File([compressedFile], categoryFile.name, { type: compressedFile.type }));
+
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) {
+          throw new Error(uploadData.error || "Failed to upload category image to R2");
+        }
+        imageUrl = uploadData.url;
+      }
+
+      if (editingCategoryId) {
+        const res = await fetch("/api/categories", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingCategoryId,
+            name: categoryName,
+            slug: categorySlug,
+            image: imageUrl || undefined
+          }),
+        });
+        if (!res.ok) throw new Error("Failed to update category");
+        alert("Category updated successfully!");
+      } else {
+        const res = await fetch("/api/categories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: categoryName,
+            slug: categorySlug,
+            image: imageUrl || undefined
+          }),
+        });
+        if (!res.ok) throw new Error("Failed to add category");
+        alert("Category added successfully!");
+      }
+
+      handleCancelCategoryEdit();
       fetchData();
-      alert("Category added successfully!");
     } catch (err) {
       console.error(err);
       alert("Error: " + err.message);
@@ -132,6 +195,7 @@ export default function AdminPage() {
       setIsAddingCategory(false);
     }
   };
+
 
   const handleEditProduct = (product) => {
     setEditingProductId(product.id);
@@ -733,20 +797,42 @@ export default function AdminPage() {
         {activeTab === "categories" && (
           <div>
             <section className="admin-card">
-              <h2>
-                <FiPlus /> Add New Category
-              </h2>
-              <form onSubmit={handleAddCategory} className="admin-form" style={{ marginTop: '12px' }}>
+              <div className="admin-card-header">
+                <h2>
+                  {editingCategoryId ? <FiEdit2 /> : <FiPlus />}
+                  {editingCategoryId ? "Edit Category" : "Add New Category"}
+                </h2>
+                {editingCategoryId && (
+                  <button
+                    type="button"
+                    onClick={handleCancelCategoryEdit}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid #c9d8ce',
+                      borderRadius: '6px',
+                      padding: '4px 10px',
+                      fontSize: '12px',
+                      color: '#55685d',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+
+              <form onSubmit={handleSubmitCategory} className="admin-form" style={{ marginTop: '12px' }}>
                 <div className="form-group">
                   <label>Category Name *</label>
                   <input
                     type="text"
                     value={categoryName}
                     onChange={handleCategoryNameChange}
-                    placeholder="e.g. Bonsai, Ferns, Hoya"
+                    placeholder="e.g. Bonsai, Ferns, Hoya, Adenium"
                     required
                   />
                 </div>
+
                 <div className="form-group">
                   <label>Category URL Slug *</label>
                   <input
@@ -757,14 +843,79 @@ export default function AdminPage() {
                     required
                   />
                 </div>
-                <button
-                  type="submit"
-                  disabled={isAddingCategory}
-                  className="admin-submit-btn"
-                  style={{ marginTop: '8px' }}
-                >
-                  {isAddingCategory ? "Adding Category..." : "Add Category"}
-                </button>
+
+                {/* Category Image Upload */}
+                <div className="form-group">
+                  <label>Category Icon / Image (Uploads to R2 for fast loading)</label>
+                  <div className="file-upload-wrapper">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setCategoryFile(e.target.files[0])}
+                      id="category-file-upload"
+                    />
+                    <label htmlFor="category-file-upload" className="file-upload-label">
+                      <FiUpload className="upload-icon" />
+                      <span>
+                        {categoryFile
+                          ? categoryFile.name
+                          : editingCategoryId
+                          ? "Tap to choose replacement image..."
+                          : "Tap to select circular category image"}
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Circular Preview */}
+                  {(categoryFile || editingCategoryImage) && (
+                    <div className="admin-image-preview" style={{ alignItems: 'center' }}>
+                      <div
+                        style={{
+                          width: '52px',
+                          height: '52px',
+                          borderRadius: '50%',
+                          overflow: 'hidden',
+                          border: '2px solid #187a32',
+                          flexShrink: 0
+                        }}
+                      >
+                        <img
+                          src={categoryFile ? URL.createObjectURL(categoryFile) : editingCategoryImage}
+                          alt="Category preview"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      </div>
+                      <span>
+                        {categoryFile
+                          ? "New category image ready (will upload to R2)"
+                          : "Current category image"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="admin-btn-group">
+                  <button
+                    type="submit"
+                    disabled={isAddingCategory}
+                    className="admin-submit-btn"
+                  >
+                    {isAddingCategory
+                      ? "Uploading to R2 & Saving..."
+                      : editingCategoryId
+                      ? "Update Category"
+                      : "Add Category"}
+                  </button>
+                  {editingCategoryId && (
+                    <button
+                      type="button"
+                      onClick={handleCancelCategoryEdit}
+                      className="admin-cancel-btn"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
               </form>
             </section>
 
@@ -780,20 +931,42 @@ export default function AdminPage() {
                     const count = products.filter((p) => p.categoryId == cat.id).length;
                     return (
                       <div key={cat.id} className="admin-category-item">
+                        {/* Circular Thumbnail */}
+                        <div className="admin-category-thumb">
+                          {cat.image ? (
+                            <img src={cat.image} alt={cat.name} loading="lazy" />
+                          ) : (
+                            <FiTag />
+                          )}
+                        </div>
+
                         <div className="admin-category-info">
                           <strong>{cat.name}</strong>
                           <span>
                             slug: /{cat.slug} • {count} {count === 1 ? "product" : "products"}
                           </span>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteCategory(cat.slug)}
-                          className="admin-action-btn delete"
-                          title="Delete Category"
-                        >
-                          <FiTrash2 />
-                        </button>
+
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleEditCategory(cat)}
+                            className="admin-action-btn edit"
+                            title="Edit Category"
+                            aria-label="Edit Category"
+                          >
+                            <FiEdit2 />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCategory(cat.slug)}
+                            className="admin-action-btn delete"
+                            title="Delete Category"
+                            aria-label="Delete Category"
+                          >
+                            <FiTrash2 />
+                          </button>
+                        </div>
                       </div>
                     );
                   })}

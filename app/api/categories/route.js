@@ -37,6 +37,31 @@ export async function POST(request) {
   }
 }
 
+export async function PUT(request) {
+  try {
+    const updatedCategory = await request.json();
+    if (!updatedCategory.id) {
+      return NextResponse.json({ error: 'Category ID is required' }, { status: 400 });
+    }
+
+    let categories = readCategories();
+    const index = categories.findIndex(c => c.id == updatedCategory.id);
+
+    if (index === -1) {
+      return NextResponse.json({ error: 'Category not found' }, { status: 404 });
+    }
+
+    categories[index] = { ...categories[index], ...updatedCategory };
+
+    fs.writeFileSync(dataFilePath, JSON.stringify(categories, null, 2));
+    return NextResponse.json({ message: 'Category updated successfully', category: categories[index] }, { status: 200 });
+  } catch (error) {
+    console.error("Failed to update category:", error);
+    return NextResponse.json({ error: 'Failed to update category' }, { status: 500 });
+  }
+}
+
+
 export async function DELETE(request) {
   try {
     const { searchParams } = new URL(request.url);
